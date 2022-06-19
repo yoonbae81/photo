@@ -27,97 +27,18 @@
   - 태블릿/클라우드 저장을 위한 파일용량 축소
 5. 처리가 끝난 원본 파일은 외장하드에 백업, 리사이징/인코딩된 파일은 태블릿/클라우드 등에 업로드
 
-![](download.png#center)
-
-## 파일명 변경
+## [파일명 변경](https://github.com/yoonbae81/photo/blob/main/rename)
 
 스마트폰에서 전송한 파일의 [EXIF](https://exiftool.org/TagNames/EXIF.html)에서 촬영시각을 추출해 [`20220619 114930.jpg`](https://exiftool.org/faq.html#Q5)와 같은 형태로 파일명을 바꾸어 저장합니다. 사진의 촬영시각은 DateTimeOriginal에서, 동영상은 CreationDate에서 추출합니다. 
 
 참고로, ExifTool을 활용해 파일에 담긴 모든 시간정보를 확인하려면 `exiftool -time:all -a -G -s FILE`를 입력하면 됩니다.
 
-```
-#!/bin/bash
 
-if [ ! $# -eq 2 ]; then
-    echo "Usage: $0 source target"
-    exit 1
-fi
-
-if [ ! -d $1 ]; then
-    echo "Not found: $1"
-    exit 1
-fi
-
-if [ -f "$1/_RENAMED" ]; then
-    echo "It seems the previous work hasn't confirmed after its completion as _RENAMED exists in source directory"
-    exit 1
-fi
-
-if [ ! -d $2 ]; then
-    echo "Making target directory: $2"
-    mkdir -p $2
-fi
-
-echo "==== Renaming jpg files with DateTimeOriginal"
-exiftool '-FileName<DateTimeOriginal' -dateFormat '%Y%m%d %H%M%S%%3nc.%%e' -IPTCDigest=new -fixBase -extractEmbedded -ext jpg -out $2 $1
-
-echo "==== Renaming mov/avi/mp4 files with CreationDate"
-exiftool '-FileName<CreationDate' -dateFormat '%Y%m%d %H%M%S%%3nc.%%e' -IPTCDigest=new -fixBase -preserve -extractEmbedded -ext mov -ext avi -ext mp4 -out "$2" "$1"
-
-touch "$1/_RENAMED"
-exit 0
-```
-
-## 사진 리사이징 및 동영상 인코딩
+## [사진 리사이징 및 동영상 인코딩](https://github.com/yoonbae81/photo/blob/main/resize)
 
 그동안 촬영한 모든 사진/동영상을 모든 기기들에서 감상하려면, 모든 기기를 고용량으로 구입하거나 매달 고용량의 클라우드 서비스를 구독해야 합니다. 가족 수와 보유 기기의 수를 감안하면 제법 큰 비용이 소요되기 때문에, 원본은 별도로 보관하되 감상용 사진/동영상은 과감히 리사이징/인코딩해 용량을 줄이기로 했습니다. 
 
 참고로, 사진 리사이징은 [여러 종류의 아이폰/아이패드 해상도](https://www.ios-resolution.com/) 가운데, 아이패드 미니 5세대의 좁은 폭인 1536 픽셀로 정했습니다. 동영상 인코딩은 몇차례 테스트를 거쳐 [H.265/HEVC](https://en.wikipedia.org/wiki/High_Efficiency_Video_Coding) 코덱의 중간 수준 압축률로 정했습니다. 그 결과, 원본 폴더의 용량은 104 GB, 리사이즈 폴더의 용량은 24 GB로, 어느 기기에 저장해도 부담없는 수준이 되었습니다.
-
-```
-#!/bin/bash
-
-if [ ! $# -eq 2 ]; then
-    echo "Usage: $0 source target"
-    exit 1
-fi
-
-if [ ! -d $1 ]; then
-    echo "Not found: $1"
-    exit 1
-fi
-
-if [ -f "$1/_RESIZED" ]; then
-    echo "It seems the previous work hasn't confirmed after its completion as _RESIZED exists in source directory"
-    exit 1
-fi
-
-if [ ! -d $2 ]; then
-    echo "Making target directory: $2"
-    mkdir -p $2
-fi
-
-shopt -s nullglob
-shopt -s nocaseglob
-
-echo "==== Resizing jpg files"
-for path in $1/*.jpg; do
-    f="${path##*/}"
-    magick "$path" -resize "1536x1536^>" -verbose "$2/$f"
-done
-
-echo "==== Encoding mov/avi/mp4 files"
-for path in $1/*.{mov,avi,mp4}; do
-    f="${path##*/}"
-    ffmpeg -y -i "$path" -map_metadata 0 -movflags use_metadata_tags -c:a aac -b:a 128k -c:v libx265 -crf 25 -tag:v hvc1 -hide_banner -loglevel error "$2/$f"
-done
-
-echo "==== Refreshing EXIF tags including GPS position after HEVC encoding"
-exiftool -if '$GPSPosition' -if 'not $UserData:GPSCoordinates' '-UserData:GPSCoordinates<GPSPosition' '-UserData:Make<Make' '-UserData:Model<Model' -preserve -extractEmbedded -overwrite_original -ext mov -ext avi -ext mp4 "$2"
-
-touch "$1/_RESIZED"
-exit 0
-```
 
 만약, 윈도우에서 한 디렉토리에 들어 있는 여러 파일에 대해 반복적으로 명령어를 처리하기 위해서는 아래의 `FOR`를 활용하면 됩니다. 만약 배치파일에 넣어 동작시킬 경우 모든 %를 %%로 변경해야 합니다.
 ```
