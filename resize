@@ -1,0 +1,44 @@
+#!/bin/bash
+
+
+
+if [ ! $# -eq 2 ]; then
+    echo "Usage: $0 source target"
+    exit 1
+fi
+
+if [ ! -d $1 ]; then
+    echo "Not found: $1"
+    exit 1
+fi
+
+if [ -f "$1/_RESIZED" ]; then
+    echo "It seems the previous work hasn't confirmed after its completion as _RESIZED exists in source directory"
+    exit 1
+fi
+
+if [ ! -d $2 ]; then
+    echo "Making target directory: $2"
+    mkdir -p $2
+fi
+
+shopt -s nullglob
+shopt -s nocaseglob
+
+echo "==== Resizing jpg files"
+for path in $1/*.jpg; do
+    f="${path##*/}"
+    magick "$path" -resize "1536x1536^>" -verbose "$2/$f"
+done
+
+echo "==== Encoding mov/avi/mp4 files"
+for path in $1/*.{mov,avi,mp4}; do
+    f="${path##*/}"
+    ffmpeg -y -i "$path" -map_metadata 0 -movflags use_metadata_tags -c:a aac -b:a 128k -c:v libx265 -crf 25 -tag:v hvc1 -hide_banner -loglevel error "$2/$f"
+done
+
+echo "==== Refreshing EXIF tags including GPS position after HEVC encoding"
+exiftool -if '$GPSPosition' -if 'not $UserData:GPSCoordinates' '-UserData:GPSCoordinates<GPSPosition' '-UserData:Make<Make' '-UserData:Model<Model' -preserve -extractEmbedded -overwrite_original -ext mov -ext avi -ext mp4 "$2"
+
+touch "$1/_RESIZED"
+exit 0

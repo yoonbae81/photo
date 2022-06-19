@@ -1,0 +1,30 @@
+#!/bin/bash
+
+if [ ! $# -eq 2 ]; then
+    echo "Usage: $0 source target"
+    exit 1
+fi
+
+if [ ! -d $1 ]; then
+    echo "Not found: $1"
+    exit 1
+fi
+
+if [ -f "$1/_RENAMED" ]; then
+    echo "It seems the previous work hasn't confirmed after its completion as _RENAMED exists in source directory"
+    exit 1
+fi
+
+if [ ! -d $2 ]; then
+    echo "Making target directory: $2"
+    mkdir -p $2
+fi
+
+echo "==== Renaming jpg files with DateTimeOriginal"
+exiftool '-FileName<DateTimeOriginal' -dateFormat '%Y%m%d %H%M%S%%3nc.%%e' -IPTCDigest=new -fixBase -extractEmbedded -ext jpg -out $2 $1
+
+echo "==== Renaming mov/avi/mp4 files with CreationDate"
+exiftool '-FileName<CreationDate' -dateFormat '%Y%m%d %H%M%S%%3nc.%%e' -IPTCDigest=new -fixBase -preserve -extractEmbedded -ext mov -ext avi -ext mp4 -out "$2" "$1"
+
+touch "$1/_RENAMED"
+exit 0
