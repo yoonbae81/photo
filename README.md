@@ -1,9 +1,3 @@
----
-title: 사진, 동영상 파일정리 및 리사이징 루틴
-date: 2022-06-19
-tags: ['exiftool', 'ffmpeg', 'imagemagick', 'photography', 'ios', 'backup']
----
-
 ## 개요 
 
 카메라와 스마트폰으로 촬영한 사진/동영상 파일의 정리와 편집이 끝나면, 백업에 앞서 아래와 같은 후속처리를 하고 있습니다.
