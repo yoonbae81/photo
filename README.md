@@ -1,3 +1,9 @@
+---
+title: 사진, 동영상 파일정리 및 리사이징 루틴
+date: 2022-06-19
+tags: ['exiftool', 'ffmpeg', 'imagemagick', 'photography', 'ios', 'backup']
+---
+
 ## 개요 
 
 카메라와 스마트폰으로 촬영한 사진/동영상 파일의 정리와 편집이 끝나면, 백업에 앞서 아래와 같은 후속처리를 하고 있습니다.
@@ -27,7 +33,9 @@
   - 태블릿/클라우드 저장을 위한 파일용량 축소
 5. 처리가 끝난 원본 파일은 외장하드에 백업, 리사이징/인코딩된 파일은 태블릿/클라우드 등에 업로드
 
-## 파일명 변경 쉘스크립트
+![](download.png#center)
+
+## 파일명 변경
 
 스마트폰에서 전송한 파일의 [EXIF](https://exiftool.org/TagNames/EXIF.html)에서 촬영시각을 추출해 [`20220619 114930.jpg`](https://exiftool.org/faq.html#Q5)와 같은 형태로 파일명을 바꾸어 저장합니다. 사진의 촬영시각은 DateTimeOriginal에서, 동영상은 CreationDate에서 추출합니다. 
 
@@ -66,7 +74,7 @@ touch "$1/_RENAMED"
 exit 0
 ```
 
-## 사진 리사이징 및 동영상 인코딩 쉘스크립트
+## 사진 리사이징 및 동영상 인코딩
 
 그동안 촬영한 모든 사진/동영상을 모든 기기들에서 감상하려면, 모든 기기를 고용량으로 구입하거나 매달 고용량의 클라우드 서비스를 구독해야 합니다. 가족 수와 보유 기기의 수를 감안하면 제법 큰 비용이 소요되기 때문에, 원본은 별도로 보관하되 감상용 사진/동영상은 과감히 리사이징/인코딩해 용량을 줄이기로 했습니다. 
 
@@ -131,6 +139,51 @@ FOR /F "tokens=*" %G IN ('dir /b *.mov *.mp4 *.avi') DO ffmpeg -i "%G" -map_meta
 35 7-23 * * * ~/photo/resize /mnt/2tb/Pictures/`date +\%Y-\%m-\%d` /mnt/2tb/Resized/`date +\%Y-\%m-\%d`
 ```
 
+## [Geotagging](https://en.wikipedia.org/wiki/Geotagging)
+
+모든 사진/동영상 파일 가운데 단 하나의 파일도 빠짐없이 위치정보를 입력하는 것은 과감한 결단이 요구되는 지난한 과정이 될 것입니다. 약 보름에 걸쳐 이를 완성하고 Photos 앱에서 지도에 표시된 사진들을 감상하고 있자니 뿌듯하기 이를 데 없습니다. Geotagging 노하우는 처리할 작업량의 규모에 따라 나누어 설명할 수 있을것 같습니다.
+
+### 위치정보가 누락된 파일의 수가 많지 않을때
+
+파일에 GPS 태그를 확인하는 명령어입니다.
+```
+exiftool -G1 -a -n -"GPS*" FILE
+```
+
+같은 장소에서 찍은 다른 사진의 GPS 좌표를 다른 파일에 입력하는 명령어인데, 사진의 양이 많지 않다면, 아이폰에서 위치정보가 지정된 사진의 지도를 탭&홀드하여 위치정보를 복사하고, 위치정보가 누락된 사진의 지도에 붙여넣기 하는 방법이 더 편리합니다.
+```
+exiftool -overwrite_original -wm cg -TagsFromFile source.jpg -"UserData:GPSCoordinates<GPSPosition" FILE
+```
+
+만약 인근 지역에서 촬영한 사진은 없지만, [지도를 통해 좌표를 직접 얻어낼 수 있는 경우](https://support.google.com/maps/answer/18539?hl=en&co=GENIE.Platform%3DDesktop), 아래와 같은 명령어를 활용하면 됩니다. 
+```
+exiftool -overwrite_original -Keys:GPSCoordinates="35.33702233389209, 129.3100879767233" *.mp4
+```
+
+### 몇일간의 사진 가운데 일부 파일에 위치정보가 누락되어 있을때
+
+스마트폰으로 촬영한 사진들은 언제나 위치정보를 저장하고 있으나, 카메라로 촬영한 사진들은 스마트폰과 싱크할때 위치정보를 제대로 전달받지 못해 위치정보가 누락되는 경우가 많습니다. 이 경우, 위치정보를 포함하는 사진들로부터 시간대별 위치정보를 뽑아내 [GPX](https://en.wikipedia.org/wiki/GPS_Exchange_Format) 파일에 저장하고, 이 파일을 토대로 위치정보가 누락된 파일에 위치정보를 계산해 넣어주는 [Inverse Geotagging](https://exiftool.org/geotag.html#Inverse) 방식이 있습니다.
+
+```
+exiftool -r -m -if "$GPSDateTime" -fileOrder GPSDateTime -p gpx.fmt . > track.gpx
+exiftool -geotag=track.gpx -api GeoMaxIntSecs=5184000 -overwrite_original -if "not $GPSPosition" -ext jpg .
+```
+
+### 수개월/수년간의 사진들에 위치정보가 누락되어 있을 때
+
+윈도우용 [GeoSetter](https://geosetter.de/en/main-en/)을 추천합니다. 다수의 파일에 한번에 좌표를 입력할 수 있게 도와줍니다. 다만, 2019년 이후 업데이트가 안되어 지도의 검색기능이 제대로 동작하지 않기 때문에, [구글 지도의 좌표](https://support.google.com/maps/answer/18539?hl=en&co=GENIE.Platform%3DDesktop)를 가져와서 GeoSetter의 즐겨찾기에 저장해 놓고 활용하면 좋습니다.
+ 
+참고로, 아래는 미리 설정해 놓으면 편리한 환경설정 변수들입니다.
+```
+- File Operations
+  - Overwrite Original File when Saving Changes: Enabled
+  - Preserve File Date and Time when Saving Changes: Enabled
+- Data Preferences
+  - Save Time Zone to Exif Data: Enabled
+  - Set Taken Date to all Exif Dates: Enabled
+  - Add Time Zone Automatically to Taken Date when Assigning Map Position: Enabled
+```
+
 ## 참고사항
 
 ### ExifTool
@@ -155,53 +208,6 @@ exiftool -a -s -F -P -r -rating= -label= -description= -keywords= -subject= -Hie
 [H.265/HEVC](https://en.wikipedia.org/wiki/High_Efficiency_Video_Coding) 코덱으로 인코딩시 카메라 및 촬영위치가 아이폰에서 제대로 표시되지 않는 문제가 있습니다. 따라서, Make, Model, GPSCoordinates 등의 정보를 인코딩 이후 다시 한 번 UserData 태그에 적어주는 절차가 필요합니다. 상기 쉘스크립트에는 이미 반영되어 있습니다. 만약 윈도우에서 실행시 -if 뒤는 '가 아닌 "로 대체해야 합니다.
 ```
 exiftool -if '$GPSPosition' -if 'not $UserData:GPSCoordinates' '-UserData:GPSCoordinates<GPSPosition' '-UserData:Make<Make' '-UserData:Model<Model' -preserve -extractEmbedded -overwrite_original -ext mov -ext avi -ext mp4 .
-```
-
-### [Geotagging](https://en.wikipedia.org/wiki/Geotagging)
-
-모든 사진/동영상 파일 가운데 단 하나의 파일도 빠짐없이 위치정보를 입력하는 것은 과감한 결단이 요구되는 지난한 과정이 될 것입니다. 약 보름에 걸쳐 이를 완성하고 Photos 앱에서 지도에 표시된 사진들을 감상하고 있자니 뿌듯하기 이를 데 없습니다. Geotagging 노하우는 처리할 작업량의 규모에 따라 나누어 설명할 수 있을것 같습니다.
-
-#### 위치정보가 누락된 파일의 수가 많지 않을때
-
-파일에 GPS 태그를 확인하는 명령어입니다.
-```
-exiftool -G1 -a -n -"GPS*" FILE
-```
-
-같은 장소에서 찍은 다른 사진의 GPS 좌표를 다른 파일에 입력하는 명령어인데, 사진의 양이 많지 않다면, 아이폰에서 위치정보가 지정된 사진의 지도를 탭&홀드하여 위치정보를 복사하고, 위치정보가 누락된 사진의 지도에 붙여넣기 하는 방법이 더 편리합니다.
-```
-exiftool -overwrite_original -wm cg -TagsFromFile source.jpg -"UserData:GPSCoordinates<GPSPosition" FILE
-```
-
-만약 인근 지역에서 촬영한 사진은 없지만, [지도를 통해 좌표를 직접 얻어낼 수 있는 경우](https://support.google.com/maps/answer/18539?hl=en&co=GENIE.Platform%3DDesktop), 아래와 같은 명령어를 활용하면 됩니다. 
-```
-exiftool -overwrite_original -Keys:GPSCoordinates="35.33702233389209, 129.3100879767233" *.mp4
-```
-
-#### 몇일간의 여행에서 찍은 사진 가운데 일부 파일의 위치정보가 누락되어 있을때
-
-스마트폰으로 촬영한 사진들은 언제나 위치정보를 저장하고 있으나, 카메라로 촬영한 사진들은 스마트폰과 싱크할때 위치정보를 제대로 전달받지 못해 위치정보가 누락되는 경우가 많습니다. 이 경우, 위치정보를 포함하는 사진들로부터 시간대별 위치정보를 뽑아내 [GPX](https://en.wikipedia.org/wiki/GPS_Exchange_Format) 파일에 저장하고, 이 파일을 토대로 위치정보가 누락된 파일에 위치정보를 계산해 넣어주는 [Inverse Geotagging](https://exiftool.org/geotag.html#Inverse) 방식이 있습니다.
-
-```
-exiftool -r -m -if "$GPSDateTime" -fileOrder GPSDateTime -p gpx.fmt . > track.gpx
-exiftool -geotag=track.gpx -api GeoMaxIntSecs=5184000 -overwrite_original -if "not $GPSPosition" -ext jpg .
-```
-
-#### 수개월/수년간의 사진들에 위치정보가 누락되어 있을 때
-
-윈도우용 [GeoSetter](https://geosetter.de/en/main-en/)을 추천합니다. 다수의 파일에 한번에 좌표를 입력할 수 있게 도와줍니다. 다만, 2019년 이후 업데이트가 안되어 지도의 검색기능이 제대로 동작하지 않기 때문에, [구글 지도의 좌표](https://support.google.com/maps/answer/18539?hl=en&co=GENIE.Platform%3DDesktop)를 가져와서 GeoSetter의 즐겨찾기에 저장해 놓고 활용하면 좋습니다.
- 
-![](geosetter.png#center)
-
-참고로, 아래는 미리 설정해 놓으면 편리한 환경설정 변수들입니다.
-```
-- File Operations
-  - Overwrite Original File when Saving Changes: Enabled
-  - Preserve File Date and Time when Saving Changes: Enabled
-- Data Preferences
-  - Save Time Zone to Exif Data: Enabled
-  - Set Taken Date to all Exif Dates: Enabled
-  - Add Time Zone Automatically to Taken Date when Assigning Map Position: Enabled
 ```
 
 ## References
