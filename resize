@@ -24,7 +24,7 @@ shopt -s nullglob
 shopt -s nocaseglob
 
 echo "==== Resizing jpg files"
-for path in $1/*.jpg; do
+for path in $1/*.{jpg,jpeg}; do
     f="${path##*/}"
     magick "$path" -resize "1536x1536^>" -verbose "$2/$f"
 done

@@ -21,7 +21,7 @@ if [ ! -d $2 ]; then
 fi
 
 echo "==== Renaming jpg files with DateTimeOriginal"
-exiftool '-FileName<DateTimeOriginal' -dateFormat '%Y%m%d %H%M%S%%3nc.%%e' -IPTCDigest=new -fixBase -extractEmbedded -ext jpg -out $2 $1
+exiftool '-FileName<DateTimeOriginal' -dateFormat '%Y%m%d %H%M%S%%3nc.%%e' -IPTCDigest=new -fixBase -extractEmbedded -ext jpg -ext jpeg -out $2 $1
 
 echo "==== Renaming mov/avi/mp4 files with CreationDate"
 exiftool '-FileName<CreationDate' -dateFormat '%Y%m%d %H%M%S%%3nc.%%e' -IPTCDigest=new -fixBase -preserve -extractEmbedded -ext mov -ext avi -ext mp4 -out "$2" "$1"
